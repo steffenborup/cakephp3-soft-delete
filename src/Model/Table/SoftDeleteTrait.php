@@ -34,6 +34,23 @@ trait SoftDeleteTrait {
         return $field;
     }
 
+    /**
+     * Get the configured "deleted_by" field
+     *
+     * @return string
+     * @throws \SoftDelete\Error\MissingFieldException
+     */
+    public function getSoftDeleteByField()
+    {
+        if (isset($this->softDeleteByField)) {
+            $field = $this->softDeleteByField;
+        } else {
+            $field = 'deleted_by';
+        }
+
+        return $field;
+    }
+
     public function query()
     {
         return new Query($this->connection(), $this);
@@ -53,6 +70,7 @@ trait SoftDeleteTrait {
      */
     protected function _processDelete($entity, $options)
     {
+    
         if ($entity->isNew()) {
             return false;
         }
@@ -71,7 +89,7 @@ trait SoftDeleteTrait {
             'entity' => $entity,
             'options' => $options
         ]);
-
+        
         if ($event->isStopped()) {
             return $event->result;
         }
@@ -83,8 +101,21 @@ trait SoftDeleteTrait {
 
         $query = $this->query();
         $conditions = (array)$entity->extract($primaryKey);
+        
+        $fields = [$this->getSoftDeleteField() => date('Y-m-d H:i:s')];
+        
+        $deletedByField = $this->getSoftDeleteByField();
+        
+        if ($this->schema()->column($deletedByField)) {
+        
+        	if (!empty($event->data['options']['loggedInUser'])) {
+        		$fields[$deletedByField] = $event->data['options']['loggedInUser'];
+        	}
+
+        }
+        
         $statement = $query->update()
-            ->set([$this->getSoftDeleteField() => date('Y-m-d H:i:s')])
+            ->set($fields)
             ->where($conditions)
             ->execute();
 
